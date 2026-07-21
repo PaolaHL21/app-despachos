@@ -1,15 +1,10 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
-import os
 
-# --- STREAMING_CHUNK:Configuración Inicial ---
 st.set_page_config(page_title="IGNOVA - Despacho Juguetes", page_icon="🧸", layout="wide")
 
-CARPETA_ARCHIVOS = "archivos_despachos"
-if not os.path.exists(CARPETA_ARCHIVOS): os.makedirs(CARPETA_ARCHIVOS)
-
-def conectar_db(): 
+def conectar_db():
     return sqlite3.connect("despachos.db")
 
 # Inicialización de BD
@@ -20,27 +15,17 @@ conn.execute("""CREATE TABLE IF NOT EXISTS despachos (
 conn.commit()
 conn.close()
 
-# --- STREAMING_CHUNK:Control de Vista Robusto ---
-# Usamos st.query_params para capturar el modo de forma precisa
+st.title("🧸 IGNOVA - Despacho Juguetes")
+
 params = st.query_params
 es_vendedor = params.get("modo") == "vendedor"
 
-# --- STREAMING_CHUNK:Encabezado ---
-col1, col2 = st.columns([1, 10])
-with col1:
-    if os.path.exists("logo.png"): st.image("logo.png", width=100)
-    else: st.write("🧸")
-with col2:
-    st.title("IGNOVA - Despacho Juguetes")
-
-# --- STREAMING_CHUNK:Lógica de Vistas ---
 if es_vendedor:
     st.info("👋 Vista de Consulta para Vendedores")
-    # En modo vendedor, solo mostramos la pestaña de consulta
-    tab_consulta = st.tabs(["🔍 Consultar Despachos"])
-    tab_seleccionada = tab_consulta[0]
+    # Solo mostramos el buscador directamente
+    tab_seleccionada = st.container()
 else:
-    # Modo Admin, ambas pestañas
+    # Vista Admin: Mostramos las pestañas
     tabs = st.tabs(["📝 Registrar Despacho", "🔍 Consultar Despachos"])
     
     with tabs[0]:
@@ -51,8 +36,6 @@ else:
                 vendedor = st.selectbox("Vendedor", ["Jeison"])
                 cajas = st.number_input("Cajas", min_value=1)
                 tipo = st.selectbox("Tipo de Embalaje", ["Caja Normal", "Caja PP"])
-                factura_file = st.file_uploader("Factura (PDF)", type=["pdf"])
-                guia_file = st.file_uploader("Foto Guía (JPG/PNG)", type=["jpg", "png"])
                 
                 if st.form_submit_button("Guardar Despacho"):
                     conn = conectar_db()
@@ -61,16 +44,14 @@ else:
                     conn.commit()
                     conn.close()
                     st.success(f"Despacho para {cliente} guardado.")
-    
     tab_seleccionada = tabs[1]
 
-# --- STREAMING_CHUNK:Pestaña de Consulta ---
 with tab_seleccionada:
     conn = conectar_db()
     df = pd.read_sql("SELECT * FROM despachos", conn)
     conn.close()
     
-    st.subheader("Filtros de Búsqueda")
+    st.subheader("Búsqueda de Despachos")
     c1, c2 = st.columns(2)
     busqueda = c1.text_input("Buscar por nombre de cliente")
     
