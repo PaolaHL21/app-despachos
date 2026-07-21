@@ -15,7 +15,8 @@ conn.execute("""CREATE TABLE IF NOT EXISTS despachos (
 conn.commit()
 conn.close()
 
-st.title("🧸 IGNOVA - Despacho Juguetes")
+st.image("logo.png", width=150)
+    st.title("IGNOVA - Despacho Juguetes")
 
 params = st.query_params
 es_vendedor = params.get("modo") == "vendedor"
