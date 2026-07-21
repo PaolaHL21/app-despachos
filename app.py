@@ -9,7 +9,8 @@ st.set_page_config(page_title="IGNOVA - Despacho Juguetes", page_icon="🧸", la
 CARPETA_ARCHIVOS = "archivos_despachos"
 if not os.path.exists(CARPETA_ARCHIVOS): os.makedirs(CARPETA_ARCHIVOS)
 
-def conectar_db(): return sqlite3.connect("despachos.db")
+def conectar_db(): 
+    return sqlite3.connect("despachos.db")
 
 # Inicialización de BD
 conn = conectar_db()
@@ -19,10 +20,10 @@ conn.execute("""CREATE TABLE IF NOT EXISTS despachos (
 conn.commit()
 conn.close()
 
-# --- STREAMING_CHUNK:Control de Vista ---
-# Si la URL termina en ?modo=vendedor, ocultamos el registro
-query_params = st.query_params
-es_vendedor = query_params.get("modo") == "vendedor"
+# --- STREAMING_CHUNK:Control de Vista Robusto ---
+# Usamos st.query_params para capturar el modo de forma precisa
+params = st.query_params
+es_vendedor = params.get("modo") == "vendedor"
 
 # --- STREAMING_CHUNK:Encabezado ---
 col1, col2 = st.columns([1, 10])
@@ -35,15 +36,14 @@ with col2:
 # --- STREAMING_CHUNK:Lógica de Vistas ---
 if es_vendedor:
     st.info("👋 Vista de Consulta para Vendedores")
-    tabs = ["🔍 Consultar Despachos"]
+    # En modo vendedor, solo mostramos la pestaña de consulta
+    tab_consulta = st.tabs(["🔍 Consultar Despachos"])
+    tab_seleccionada = tab_consulta[0]
 else:
-    tabs = ["📝 Registrar Despacho", "🔍 Consultar Despachos"]
-
-tab_seleccionada = st.tabs(tabs)
-
-# --- STREAMING_CHUNK:Pestaña de Registro (Solo Admin) ---
-if not es_vendedor:
-    with tab_seleccionada[0]:
+    # Modo Admin, ambas pestañas
+    tabs = st.tabs(["📝 Registrar Despacho", "🔍 Consultar Despachos"])
+    
+    with tabs[0]:
         with st.expander("Registrar Nuevo Despacho", expanded=True):
             with st.form("form_reg", clear_on_submit=True):
                 fecha = st.date_input("Fecha")
@@ -55,24 +55,17 @@ if not es_vendedor:
                 guia_file = st.file_uploader("Foto Guía (JPG/PNG)", type=["jpg", "png"])
                 
                 if st.form_submit_button("Guardar Despacho"):
-                    f_ruta, g_ruta = "", ""
-                    if factura_file:
-                        f_ruta = os.path.join(CARPETA_ARCHIVOS, f"{cliente}_{fecha}_{factura_file.name}")
-                        with open(f_ruta, "wb") as f: f.write(factura_file.getbuffer())
-                    if guia_file:
-                        g_ruta = os.path.join(CARPETA_ARCHIVOS, f"{cliente}_{fecha}_{guia_file.name}")
-                        with open(g_ruta, "wb") as f: f.write(guia_file.getbuffer())
-
                     conn = conectar_db()
                     conn.execute("INSERT INTO despachos (fecha, cliente, vendedor, cajas, tipo_cajas, factura_ruta, guia_ruta) VALUES (?,?,?,?,?,?,?)", 
-                                 (str(fecha), cliente, vendedor, cajas, tipo, f_ruta, g_ruta))
+                                 (str(fecha), cliente, vendedor, cajas, tipo, "N/A", "N/A"))
                     conn.commit()
                     conn.close()
                     st.success(f"Despacho para {cliente} guardado.")
+    
+    tab_seleccionada = tabs[1]
 
-# --- STREAMING_CHUNK:Pestaña de Consulta (Para todos) ---
-idx_consulta = 1 if not es_vendedor else 0
-with tab_seleccionada[idx_consulta]:
+# --- STREAMING_CHUNK:Pestaña de Consulta ---
+with tab_seleccionada:
     conn = conectar_db()
     df = pd.read_sql("SELECT * FROM despachos", conn)
     conn.close()
@@ -89,7 +82,3 @@ with tab_seleccionada[idx_consulta]:
         if filtro_fecha: df = df[df['fecha'].dt.date == filtro_fecha]
         
     st.dataframe(df, use_container_width=True)
-    
-    if not df.empty:
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Descargar Reporte (CSV)", csv, "despachos.csv", "text/csv")
