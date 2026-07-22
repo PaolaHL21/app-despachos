@@ -48,8 +48,6 @@ if choice == "Registrar Despacho":
     cliente = st.text_input("Nombre del Cliente")
     vendedor = st.selectbox("Vendedor", ["Jeison", "Otro Vendedor"])
     cajas = st.number_input("Cajas", min_value=1, step=1)
-
-    # Tipo de embalaje actualizado con solo Normal y PP
     embalaje = st.selectbox("Tipo de Embalaje", ["Normal", "PP"])
 
     st.markdown("---")
@@ -108,7 +106,10 @@ if choice == "Registrar Despacho":
 elif choice == "Consultar Despachos":
   st.subheader("📊 Historial y Consulta de Despachos")
 
-  df = pd.read_sql_query("SELECT * FROM despachos", conn)
+  # Cargar datos y ordenar automáticamente por fecha de forma descendente (más reciente primero)
+  df = pd.read_sql_query(
+      "SELECT * FROM despachos ORDER BY fecha DESC, id DESC", conn
+  )
 
   if not df.empty:
     busqueda = st.text_input("🔍 Buscar por cliente o vendedor:")
