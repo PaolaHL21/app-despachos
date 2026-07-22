@@ -45,9 +45,9 @@ if choice == "Registrar Despacho":
     cliente = st.text_input("Nombre del Cliente")
     vendedor = st.selectbox("Vendedor", ["Jeison", "Otro Vendedor"])
     cajas = st.number_input("Cajas", min_value=1, step=1)
-    embalaje = st.selectbox(
-        "Tipo de Embalaje", ["Caja Normal", "Zuncho", "Vinipel", "Otro"]
-    )
+
+    # Tipo de embalaje actualizado con solo Normal y PP
+    embalaje = st.selectbox("Tipo de Embalaje", ["Normal", "PP"])
 
     st.markdown("---")
     st.subheader("📎 Archivos Adjuntos")
