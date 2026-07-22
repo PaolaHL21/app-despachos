@@ -1,66 +1,129 @@
-import streamlit as st
+import os
 import sqlite3
 import pandas as pd
+import streamlit as st
 
-st.set_page_config(page_title="IGNOVA - Despacho Juguetes", page_icon="🧸", layout="wide")
+# Configuración de la página
+st.set_page_config(
+    page_title="Control de Despachos", page_icon="📦", layout="wide"
+)
 
-def conectar_db():
-    return sqlite3.connect("despachos.db")
+# Directorio para archivos subidos
+UPLOAD_DIR = "uploads"
+os.makedirs(os.path.join(UPLOAD_DIR, "facturas"), exist_ok=True)
+os.makedirs(os.path.join(UPLOAD_DIR, "guias"), exist_ok=True)
 
-# Inicialización de BD
-conn = conectar_db()
-conn.execute("""CREATE TABLE IF NOT EXISTS despachos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, cliente TEXT, 
-    vendedor TEXT, cajas INTEGER, tipo_cajas TEXT, factura_ruta TEXT, guia_ruta TEXT)""")
+# --- CONFIGURACIÓN DE BASE DE DATOS ---
+conn = sqlite3.connect("database.db", check_same_thread=False)
+cursor = conn.cursor()
+
+cursor.execute(
+    """
+    CREATE TABLE IF NOT EXISTS despachos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha TEXT,
+        cliente TEXT,
+        vendedor TEXT,
+        cajas INTEGER,
+        embalaje TEXT,
+        factura_path TEXT,
+        guia_path TEXT
+    )
+"""
+)
 conn.commit()
-conn.close()
 
-st.image("logo.png", width=150)
-st.title("IGNOVA-Despacho Juguetes")
+# --- INTERFAZ DE USUARIO ---
+menu = ["Registrar Despacho", "Consultar Despachos"]
+choice = st.sidebar.selectbox("Menú de Navegación", menu)
 
-params = st.query_params
-es_vendedor = params.get("modo") == "vendedor"
+if choice == "Registrar Despacho":
+  st.subheader("Registrar Nuevo Despacho")
 
-if es_vendedor:
-    st.info("👋 Vista de Consulta para Vendedores")
-    # Solo mostramos el buscador directamente
-    tab_seleccionada = st.container()
-else:
-    # Vista Admin: Mostramos las pestañas
-    tabs = st.tabs(["📝 Registrar Despacho", "🔍 Consultar Despachos"])
-    
-    with tabs[0]:
-        with st.expander("Registrar Nuevo Despacho", expanded=True):
-            with st.form("form_reg", clear_on_submit=True):
-                fecha = st.date_input("Fecha")
-                cliente = st.text_input("Nombre del Cliente")
-                vendedor = st.selectbox("Vendedor", ["Jeison"])
-                cajas = st.number_input("Cajas", min_value=1)
-                tipo = st.selectbox("Tipo de Embalaje", ["Caja Normal", "Caja PP"])
-                
-                if st.form_submit_button("Guardar Despacho"):
-                    conn = conectar_db()
-                    conn.execute("INSERT INTO despachos (fecha, cliente, vendedor, cajas, tipo_cajas, factura_ruta, guia_ruta) VALUES (?,?,?,?,?,?,?)", 
-                                 (str(fecha), cliente, vendedor, cajas, tipo, "N/A", "N/A"))
-                    conn.commit()
-                    conn.close()
-                    st.success(f"Despacho para {cliente} guardado.")
-    tab_seleccionada = tabs[1]
+  with st.form("form_despacho", clear_on_submit=True):
+    fecha = st.date_input("Fecha")
+    cliente = st.text_input("Nombre del Cliente")
+    vendedor = st.selectbox("Vendedor", ["Jeison", "Otro Vendedor"])
+    cajas = st.number_input("Cajas", min_value=1, step=1)
+    embalaje = st.selectbox(
+        "Tipo de Embalaje", ["Caja Normal", "Zuncho", "Vinipel", "Otro"]
+    )
 
-with tab_seleccionada:
-    conn = conectar_db()
-    df = pd.read_sql("SELECT * FROM despachos", conn)
-    conn.close()
-    
-    st.subheader("Búsqueda de Despachos")
-    c1, c2 = st.columns(2)
-    busqueda = c1.text_input("Buscar por nombre de cliente")
-    
-    if not df.empty:
-        df['fecha'] = pd.to_datetime(df['fecha'])
-        filtro_fecha = c2.date_input("Filtrar por fecha específica", value=None)
-        
-        if busqueda: df = df[df['cliente'].str.contains(busqueda, case=False)]
-        if filtro_fecha: df = df[df['fecha'].dt.date == filtro_fecha]
-        
+    st.markdown("---")
+    st.subheader("📎 Archivos Adjuntos")
+    col3, col4 = st.columns(2)
+
+    with col3:
+      factura_file = st.file_uploader(
+          "Cargar Factura (PDF)", type=["pdf"], key="factura"
+      )
+    with col4:
+      guia_file = st.file_uploader(
+          "Cargar Foto de Guía", type=["png", "jpg", "jpeg"], key="guia"
+      )
+
+    submit_button = st.form_submit_button("Guardar Despacho")
+
+    if submit_button:
+      if not cliente:
+        st.warning("Por favor, ingresa el nombre del cliente.")
+      else:
+        # Guardar archivos físicos en la carpeta local
+        factura_path = ""
+        if factura_file is not None:
+          factura_path = os.path.join(
+              UPLOAD_DIR, "facturas", factura_file.name
+          )
+          with open(factura_path, "wb") as f:
+            f.write(factura_file.getbuffer())
+
+        guia_path = ""
+        if guia_file is not None:
+          guia_path = os.path.join(UPLOAD_DIR, "guias", guia_file.name)
+          with open(guia_path, "wb") as f:
+            f.write(guia_file.getbuffer())
+
+        # Guardar registro en SQLite
+        cursor.execute(
+            """
+                INSERT INTO despachos (fecha, cliente, vendedor, cajas, embalaje, factura_path, guia_path)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                str(fecha),
+                cliente,
+                vendedor,
+                cajas,
+                embalaje,
+                factura_path,
+                guia_path,
+            ),
+        )
+        conn.commit()
+        st.success("¡Despacho registrado con éxito!")
+
+elif choice == "Consultar Despachos":
+  st.subheader("📊 Historial y Consulta de Despachos")
+
+  df = pd.read_sql_query("SELECT * FROM despachos", conn)
+
+  if not df.empty:
+    busqueda = st.text_input("🔍 Buscar por cliente o vendedor:")
+    if busqueda:
+      df = df[
+          df["cliente"].str.contains(busqueda, case=False, na=False)
+          | df["vendedor"].str.contains(busqueda, case=False, na=False)
+      ]
+
     st.dataframe(df, use_container_width=True)
+
+    # Exportar a CSV
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label="📥 Descargar datos en CSV",
+        data=csv,
+        file_name="reporte_despachos.csv",
+        mime="text/csv",
+    )
+  else:
+    st.info("No hay despachos registrados todavía.")
