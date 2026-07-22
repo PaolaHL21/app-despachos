@@ -5,7 +5,7 @@ import streamlit as st
 
 # Configuración de la página
 st.set_page_config(
-    page_title="Control de Despachos", page_icon="📦", layout="wide"
+    page_title="Despachos Juguetes", page_icon="📦", layout="wide"
 )
 
 # Directorio para archivos subidos
@@ -33,80 +33,111 @@ cursor.execute(
 )
 conn.commit()
 
-# --- INTERFAZ DE USUARIO ---
+# --- INTERFAZ PRINCIPAL ---
 st.image("logo.png", width=120)
 st.title("Despachos Juguetes")
 
-menu = ["Registrar Despacho", "Consultar Despachos"]
-choice = st.sidebar.selectbox("Menú de Navegación", menu)
+# Selector de rol en la barra lateral para controlar el acceso
+rol = st.sidebar.selectbox("Seleccione el Perfil", ["Administrador", "Vendedor"])
 
-if choice == "Registrar Despacho":
-  st.subheader("Registrar Nuevo Despacho")
+if rol == "Administrador":
+  st.sidebar.markdown("---")
+  menu = st.sidebar.radio(
+      "Menú Administrador", ["Registrar Despacho", "Consultar Despachos"]
+  )
 
-  with st.form("form_despacho", clear_on_submit=True):
-    fecha = st.date_input("Fecha")
-    cliente = st.text_input("Nombre del Cliente")
-    vendedor = st.selectbox("Vendedor", ["Jeison", "Otro Vendedor"])
-    cajas = st.number_input("Cajas", min_value=1, step=1)
-    embalaje = st.selectbox("Tipo de Embalaje", ["Normal", "PP"])
+  if menu == "Registrar Despacho":
+    st.subheader("Registrar Nuevo Despacho")
 
-    st.markdown("---")
-    st.subheader("📎 Archivos Adjuntos")
-    col3, col4 = st.columns(2)
+    with st.form("form_despacho", clear_on_submit=True):
+      fecha = st.date_input("Fecha")
+      cliente = st.text_input("Nombre del Cliente")
+      vendedor = st.selectbox("Vendedor", ["Jeison", "Otro Vendedor"])
+      cajas = st.number_input("Cajas", min_value=1, step=1)
+      embalaje = st.selectbox("Tipo de Embalaje", ["Normal", "PP"])
 
-    with col3:
-      factura_file = st.file_uploader(
-          "Cargar Factura (PDF)", type=["pdf"], key="factura"
-      )
-    with col4:
-      guia_file = st.file_uploader(
-          "Cargar Foto de Guía", type=["png", "jpg", "jpeg"], key="guia"
-      )
+      st.markdown("---")
+      st.subheader("📎 Archivos Adjuntos")
+      col3, col4 = st.columns(2)
 
-    submit_button = st.form_submit_button("Guardar Despacho")
-
-    if submit_button:
-      if not cliente:
-        st.warning("Por favor, ingresa el nombre del cliente.")
-      else:
-        # Guardar archivos físicos en la carpeta local
-        factura_path = ""
-        if factura_file is not None:
-          factura_path = os.path.join(
-              UPLOAD_DIR, "facturas", factura_file.name
-          )
-          with open(factura_path, "wb") as f:
-            f.write(factura_file.getbuffer())
-
-        guia_path = ""
-        if guia_file is not None:
-          guia_path = os.path.join(UPLOAD_DIR, "guias", guia_file.name)
-          with open(guia_path, "wb") as f:
-            f.write(guia_file.getbuffer())
-
-        # Guardar registro en SQLite
-        cursor.execute(
-            """
-                INSERT INTO despachos (fecha, cliente, vendedor, cajas, embalaje, factura_path, guia_path)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                str(fecha),
-                cliente,
-                vendedor,
-                cajas,
-                embalaje,
-                factura_path,
-                guia_path,
-            ),
+      with col3:
+        factura_file = st.file_uploader(
+            "Cargar Factura (PDF)", type=["pdf"], key="factura"
         )
-        conn.commit()
-        st.success("¡Despacho registrado con éxito!")
+      with col4:
+        guia_file = st.file_uploader(
+            "Cargar Foto de Guía", type=["png", "jpg", "jpeg"], key="guia"
+        )
 
-elif choice == "Consultar Despachos":
-  st.subheader("📊 Historial y Consulta de Despachos")
+      submit_button = st.form_submit_button("Guardar Despacho")
 
-  # Cargar datos y ordenar automáticamente por fecha de forma descendente (más reciente primero)
+      if submit_button:
+        if not cliente:
+          st.warning("Por favor, ingresa el nombre del cliente.")
+        else:
+          factura_path = ""
+          if factura_file is not None:
+            factura_path = os.path.join(
+                UPLOAD_DIR, "facturas", factura_file.name
+            )
+            with open(factura_path, "wb") as f:
+              f.write(factura_file.getbuffer())
+
+          guia_path = ""
+          if guia_file is not None:
+            guia_path = os.path.join(UPLOAD_DIR, "guias", guia_file.name)
+            with open(guia_path, "wb") as f:
+              f.write(guia_file.getbuffer())
+
+          cursor.execute(
+              """
+                  INSERT INTO despachos (fecha, cliente, vendedor, cajas, embalaje, factura_path, guia_path)
+                  VALUES (?, ?, ?, ?, ?, ?, ?)
+              """,
+              (
+                  str(fecha),
+                  cliente,
+                  vendedor,
+                  cajas,
+                  embalaje,
+                  factura_path,
+                  guia_path,
+              ),
+          )
+          conn.commit()
+          st.success("¡Despacho registrado con éxito!")
+
+  elif menu == "Consultar Despachos":
+    st.subheader("📊 Historial y Consulta de Despachos")
+
+    df = pd.read_sql_query(
+        "SELECT * FROM despachos ORDER BY fecha DESC, id DESC", conn
+    )
+
+    if not df.empty:
+      busqueda = st.text_input("🔍 Buscar por cliente o vendedor:")
+      if busqueda:
+        df = df[
+            df["cliente"].str.contains(busqueda, case=False, na=False)
+            | df["vendedor"].str.contains(busqueda, case=False, na=False)
+        ]
+
+      st.dataframe(df, use_container_width=True)
+
+      csv = df.to_csv(index=False).encode("utf-8")
+      st.download_button(
+          label="📥 Descargar datos en CSV",
+          data=csv,
+          file_name="reporte_despachos.csv",
+          mime="text/css" if False else "text/csv",
+      )
+    else:
+      st.info("No hay despachos registrados todavía.")
+
+else:
+  # Vista exclusiva para el Vendedor (Bloqueado de registros)
+  st.subheader("📊 Historial y Consulta de Despachos (Vista Vendedor)")
+
   df = pd.read_sql_query(
       "SELECT * FROM despachos ORDER BY fecha DESC, id DESC", conn
   )
@@ -121,7 +152,6 @@ elif choice == "Consultar Despachos":
 
     st.dataframe(df, use_container_width=True)
 
-    # Exportar a CSV
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button(
         label="📥 Descargar datos en CSV",
