@@ -33,11 +33,9 @@ cursor.execute(
 )
 conn.commit()
 
-# --- INTERFAZ DE USUARIO CON TÍTULO Y LOGO PERSONALIZADO ---
-st.image(
-    "logo.png", width=120
-)  # Asegúrate de mantener tu archivo de logo en la carpeta
-st.title("📦 Sistema de Gestión y Control de Despachos")
+# --- INTERFAZ DE USUARIO ---
+st.image("logo.png", width=120)
+st.title("Despachos Juguetes")
 
 menu = ["Registrar Despacho", "Consultar Despachos"]
 choice = st.sidebar.selectbox("Menú de Navegación", menu)
